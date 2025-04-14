@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FNAF HTML</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="bg-menu"></div>
+    <img src="./Sprites/game_title.png" alt="" class="menu-title">
+    
+    <div id="menuContainer">
+        <input type="text" id="usernameInput" placeholder="Enter Username">
+        <button id="instructionBtn">Instructions</button>
+        
+        <button id="startBtn">
+            <img src="./Sprites/newgame_button.png" alt="">
+        </button>
+        <button id="continueBtn" disabled>
+            <img src="./Sprites/continue_button.png" alt="">
+        </button>
+    </div>
+
+    <div id="instructionContainer">
+        <div class="instruction-content">
+            <h1>How to play game</h1>
+            <ol>
+                <li>dont die</li>
+            </ol>
+        </div>
+        <div id="closeInstructionBtn">X</div>
+    </div>
+
+    <div id="gameContainer">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script src="menu.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
