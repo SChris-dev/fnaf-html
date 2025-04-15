@@ -210,6 +210,173 @@ function updateCameraAnimations() {
     }
 }
 
+// rooms
+
+const cameraRooms = [
+    {
+        name: "Show Stage",
+        path: "./Sprites/rooms/show_stage/defined_show_stage.png",
+        frameCount: 7,
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0,
+    },
+    {
+        name: "Backstage",
+        path: "./Sprites/rooms/backstage/defined_backstage.png",
+        frameCount: 4,
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0
+    },
+    {
+        name: "Dining Area",
+        path: "./Sprites/rooms/dining_area/defined_dining_area.png",
+        frameCount: 6,
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0
+    },
+    {
+        name: "East Hall",
+        path: "./Sprites/rooms/east_hall/defined_east_hall.png",
+        frameCount: 6,
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0
+    },
+    {
+        name: "East Hall Corner",
+        path: "./Sprites/rooms/east_hall/defined_east_hall_corner.png",
+        frameCount: 9,
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0
+    },
+    {
+        name: "Pirates Cove",
+        path: "./Sprites/rooms/pirates_cove/defined_pirates_cove.png",
+        frameCount: 5,
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0
+    },
+    {
+        name: "Restrooms",
+        path: "./Sprites/rooms/restrooms/defined_restrooms.png",
+        frameCount: 4,
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0
+    },
+    {
+        name: "Supply Closet",
+        path: "./Sprites/rooms/supply_closet/defined_supply_closet.png",
+        frameCount: 2,
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0
+    },
+    {
+        name: "West Hall",
+        path: "./Sprites/rooms/west_hall/defined_west_hall.png",
+        frameCount: 3, // 34
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0
+    },
+    {
+        name: "West Hall Corner",
+        path: "./Sprites/rooms/west_hall/defined_west_hall_corner.png",
+        frameCount: 6,
+        frameWidth: 1600,
+        frameHeight: 720,
+        image: new Image(),
+        currentFrame: 0
+    },
+];
+
+cameraRooms.forEach(room => {
+    room.image.src = room.path;
+});
+
+// camera system
+let currentCamIndex = 0;
+let cameraRoom = cameraRooms[currentCamIndex];
+
+const defaultPan = {
+    x: 0,
+    direction: 1,
+    delay: 5000,
+    lastUpdate: Date.now()
+};
+
+cameraRooms.forEach(room => {
+    if (room.frameWidth < 1600) return;
+
+    room.pan = {
+        ...defaultPan,
+        maxX: 1600 - canvas.width
+    };
+});
+
+function updateCameraPan(room, deltaTime) {
+    if (!room.pan) return;
+
+    const speed = 60; // pixels per second
+    const moveAmount = speed * (deltaTime / 1000); // smooth movement
+
+    room.pan.x += moveAmount * room.pan.direction;
+
+    // Clamp + reverse direction if hitting bounds
+    if (room.pan.x >= room.pan.maxX) {
+        room.pan.x = room.pan.maxX;
+        room.pan.direction = -1;
+    } else if (room.pan.x <= 0) {
+        room.pan.x = 0;
+        room.pan.direction = 1;
+    }
+}
+
+
+
+// camera zones (minimap)
+const cameraZones = [
+    { name: "Backstage", x: 800, y: 385, width: 60, height: 35 },
+    { name: "Dining Area", x: 905, y: 355, width: 60, height: 35 },
+    { name: "Show Stage", x: 925, y: 300, width: 60, height: 35 },
+    { name: "East Hall", x: 1030, y: 550, width: 60, height: 35 },
+    { name: "East Hall Corner", x: 1030, y: 590, width: 60, height: 35 },
+    { name: "Pirates Cove", x: 875, y: 435, width: 60, height: 35 },
+    { name: "Restrooms", x: 1140, y: 385, width: 60, height: 35 },
+    { name: "Supply Closet", x: 840, y: 535, width: 60, height: 35 },
+    { name: "West Hall", x: 925, y: 550, width: 60, height: 35 },
+    { name: "West Hall Corner", x: 925, y: 590, width: 60, height: 35 }
+];
+
+// static screen
+const staticEffect = {
+    image: new Image(),
+    path: "./Sprites/static_screen.png",
+    frameCount: 7,
+    frameWidth: 1280,
+    frameHeight: 720,
+    currentFrame: 0,
+    frameDelay: 0,
+    frameTimer: 0
+};
+
+staticEffect.image.src = staticEffect.path;
+
 
 // event listeners
 // camera office movement
@@ -276,6 +443,28 @@ canvas.addEventListener('click', (e) => {
         }
     }
 })
+
+// minimap camera
+canvas.addEventListener('click', (e) => {
+    if (!cameraIsOpen || cameraOpening || cameraClosing) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    for (let zone of cameraZones) {
+        if (
+            mouseX >= zone.x && mouseX <= zone.x + zone.width &&
+            mouseY >= zone.y && mouseY <= zone.y + zone.height
+        ) {
+            const roomIndex = cameraRooms.findIndex(r => r.name === zone.name);
+            if (roomIndex !== -1) {
+                currentCamIndex = roomIndex;
+                console.log("Switched to:", zone.name);
+            }
+        }
+    }
+});
 
 // game drawings
 // draw office
@@ -355,8 +544,9 @@ function drawCameraUI() {
         !cameraSprites.redDot.complete || 
         !cameraBar.complete) return;
 
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "white";
+    ctx.font = "24px Consolas";
+    ctx.fillText(cameraRooms[currentCamIndex].name, 800, 250);
 
     ctx.drawImage(cameraSprites.redDot, 40, 40);
     ctx.drawImage(cameraSprites.border, 0, 0);
@@ -377,10 +567,80 @@ function drawCameraLift() {
     );
 }
 
+// draw camera rooms
+function drawCameraRoom(index) {
+    const room = cameraRooms[index];
+    const panX = room.pan ? room.pan.x : 0;
+
+    ctx.drawImage(
+        room.image,
+        room.currentFrame * room.frameWidth + panX,
+        0,
+        canvas.width,
+        canvas.height,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+}
+
+
+
+
+window.addEventListener('keydown', (e) => {
+    if (cameraIsOpen && !cameraOpening && !cameraClosing) {
+        if (e.key === 'ArrowRight') {
+            currentCamIndex = (currentCamIndex + 1) % cameraRooms.length;
+            console.log('right')
+        }
+        if (e.key === 'ArrowLeft') {
+            currentCamIndex = (currentCamIndex - 1 + cameraRooms.length) % cameraRooms.length;
+            console.log('left');
+        }
+    }
+});
+
+// draw static rooms
+function drawCameraStatic() {
+    staticEffect.frameTimer++;
+    if (staticEffect.frameTimer >= staticEffect.frameDelay) {
+        staticEffect.currentFrame = (staticEffect.currentFrame + 1) % staticEffect.frameCount;
+        staticEffect.frameTimer = 0;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.drawImage(
+        staticEffect.image,
+        staticEffect.currentFrame * staticEffect.frameWidth,
+        0,
+        staticEffect.frameWidth,
+        staticEffect.frameHeight,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+    ctx.restore();
+
+}
 
 
 // game loop
+let lastFrameTime = Date.now();
+
+function getDeltaTime() {
+    const now = Date.now();
+    const delta = now - lastFrameTime;
+    lastFrameTime = now;
+    return delta;
+}
+
+
 function gameLoop() {
+    const deltaTime = getDeltaTime();
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // office
@@ -398,6 +658,10 @@ function gameLoop() {
         drawCameraLift();
     
         if (cameraAnimationFinished) {
+            const room = cameraRooms[currentCamIndex];
+            updateCameraPan(room, deltaTime);
+            drawCameraRoom(currentCamIndex);
+            drawCameraStatic();
             drawCameraUI();
         }
     
