@@ -50,6 +50,23 @@ buttonSprites.right.lightOn.src = './Sprites/office_buttons/right_side/right_but
 const doorImage = new Image();
 doorImage.src = './Sprites/room_office/office_doors.png';
 
+// camera stuff
+const cameraSprites = {
+    redDot: new Image(),
+    border: new Image(),
+    cams: new Image()
+}
+
+cameraSprites.redDot.src = './Sprites/camera_ui/camera_red_dot.png';
+cameraSprites.border.src = './Sprites/camera_ui/camera_border.png';
+cameraSprites.cams.src = './Sprites/camera_ui/camera_cams.png';
+
+const cameraBar = new Image();
+cameraBar.src = './Sprites/office_ui/camera_bar.png';
+
+const cameraLiftImage = new Image();
+cameraLiftImage.src = './Sprites/camera_ui/camera_lift.png';
+
 // game variables
 
 // office background system
@@ -144,6 +161,56 @@ function updateDoorAnimations() {
     }
 }
 
+// core camera
+let cameraLiftFrames = [
+    { x: 2, y: 2 },
+    { x: 1284, y: 2 },
+    { x: 2566, y: 2 },
+    { x: 3848, y: 2 },
+    { x: 2, y: 724 },
+    { x: 1284, y: 724 },
+    { x: 2566, y: 724 },
+    { x: 3848, y: 724 },
+    { x: 2, y: 1446 },
+    { x: 1284, y: 1446 },
+    { x: 2566, y: 1446 },
+];
+
+const cameraLiftFrameWidth = canvas.width;
+const cameraLiftFrameHeight = canvas.height;
+
+let cameraIsOpen = false;
+let cameraOpening = false;
+let cameraClosing = false;
+let cameraFrame = 0;
+let cameraFrameDelay = 2;
+let cameraDelayCounter = 0;
+
+let cameraAnimationFinished = false;
+
+function updateCameraAnimations() {
+    if (++cameraDelayCounter >= cameraFrameDelay) {
+        cameraDelayCounter = 0;
+
+        if (cameraOpening && cameraFrame < cameraLiftFrames.length - 1) {
+            cameraFrame++;
+            if (cameraFrame === cameraLiftFrames.length - 1) {
+                cameraOpening = false;
+                cameraIsOpen = true;
+                cameraAnimationFinished = true;
+            }
+        } else if (cameraClosing && cameraFrame > 0) {
+            cameraFrame--;
+            if (cameraFrame === 0) {
+                cameraClosing = false;
+                cameraIsOpen = false;
+                cameraAnimationFinished = false;
+            }
+        }
+    }
+}
+
+
 // event listeners
 // camera office movement
 canvas.addEventListener('mousemove', (e) => {
@@ -192,6 +259,24 @@ canvas.addEventListener('click', (e) => {
     }
 })
 
+// core camera stuff
+canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    if (mouseX >= 350 && mouseX <= 950 && mouseY >= 670 && mouseY <= 720) {
+        if (cameraIsOpen && !cameraClosing && !cameraOpening) {
+            cameraClosing = true;
+            cameraOpening = false;
+            cameraAnimationFinished = false;
+        } else if (!cameraIsOpen && !cameraOpening && !cameraClosing) {
+            cameraOpening = true;
+            cameraClosing = false;
+        }
+    }
+})
+
 // game drawings
 // draw office
 function drawOfficeBg() {
@@ -236,6 +321,12 @@ function drawOfficeButtons() {
     ctx.drawImage(rightImg, 1480 - bgOffsetX, 250);
 }
 
+function drawCameraBar() {
+    if (!cameraBar.complete) return;
+
+    ctx.drawImage(cameraBar, 350, 660);
+}
+
 // draw office doors
 function drawDoors() {
     const right = rightDoorFrames[rightDoorFrame];
@@ -255,6 +346,39 @@ function drawDoors() {
     ctx.drawImage(doorImage, right.x, right.y, doorFrameWidth, doorFrameHeight, 1300 - bgOffsetX, 0, doorFrameWidth, doorFrameHeight);
 }
 
+// draw core camera UI
+function drawCameraUI() {
+    if (!cameraIsOpen && !cameraOpening && !cameraClosing) return;
+
+    if (!cameraSprites.border.complete || 
+        !cameraSprites.cams.complete || 
+        !cameraSprites.redDot.complete || 
+        !cameraBar.complete) return;
+
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.drawImage(cameraSprites.redDot, 40, 40);
+    ctx.drawImage(cameraSprites.border, 0, 0);
+    ctx.drawImage(cameraSprites.cams, 800, 300);
+}
+
+
+function drawCameraLift() {
+    const frame = cameraLiftFrames[cameraFrame];
+    ctx.drawImage(
+        cameraLiftImage,
+        frame.x,
+        frame.y,
+        cameraLiftFrameWidth,
+        cameraLiftFrameHeight,
+        0, 0,
+        canvas.width, canvas.height
+    );
+}
+
+
+
 // game loop
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -264,7 +388,21 @@ function gameLoop() {
     drawLitRoom();
     drawDoors();
     drawOfficeButtons();
+    drawCameraBar();
     updateDoorAnimations();
+
+    // camera
+    updateCameraAnimations();
+
+    if (cameraIsOpen || cameraOpening || cameraClosing) {
+        drawCameraLift();
+    
+        if (cameraAnimationFinished) {
+            drawCameraUI();
+        }
+    
+        drawCameraBar();
+    }
 
     requestAnimationFrame(gameLoop);
 }
