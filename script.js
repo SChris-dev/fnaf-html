@@ -5,11 +5,106 @@ const ctx = canvas.getContext('2d');
 canvas.width = 1280;
 canvas.height = 720;
 
-// load images
+// load audio & audio manager
+const AudioManager = {
+    sounds: {},
 
+    load(name, src, options = {}) {
+        const audio = new Audio(src);
+        audio.volume = options.volume ?? 1;
+        audio.loop = options.loop ?? false;
+        this.sounds[name] = audio;
+    },
+
+    play(name, restart = true) {
+        const sound = this.sounds[name];
+        if (!sound) return;
+
+        if (restart) {
+            sound.currentTime = 0;
+        }
+
+        sound.play().catch(e => {
+            console.warn(`Audio "${name}" couldn't play:`, e);
+        });
+    },
+
+    pause(name) {
+        const sound = this.sounds[name];
+        if (sound) sound.pause();
+    },
+
+    stop(name) {
+        const sound = this.sounds[name];
+        if (sound) {
+            sound.pause();
+            sound.currentTime = 0;
+        }
+    },
+
+    setVolume(name, volume) {
+        const sound = this.sounds[name];
+        if (sound) sound.volume = volume;
+    },
+
+    muteAll() {
+        for (const key in this.sounds) {
+            this.sounds[key].muted = true;
+        }
+    },
+
+    unmuteAll() {
+        for (const key in this.sounds) {
+            this.sounds[key].muted = false;
+        }
+    }
+};
+
+function loadSounds(sounds) {
+    for (const [name, path] of Object.entries(sounds)) {
+        AudioManager.load(name, path);
+    }
+}
+
+loadSounds({
+    powerdown: './SFX/powerdown.wav',
+    camera_open: './SFX/camera_open.wav',
+    camera_close: './SFX/camera_close.wav',
+    change_camera: './SFX/change_camera.wav',
+    crowd_cheering: './SFX/crowd_cheering.wav',
+    door_open_close: './SFX/door_open_close.wav',
+    error: './SFX/error.wav',
+    freddy_nose: './SFX/freddy_nose.wav',
+    mid_game_ambience: './SFX/mid_game_ambience.wav',
+    office_ambience: './SFX/office_ambience.wav',
+    tape_sounds: './SFX/tape_sounds.wav',
+    windowscare: './SFX/windowscare.wav',
+    winning_bells: './SFX/winning_bells.wav',
+    freddy_is_here: './SFX/freddy_is_here.wav',
+});
+
+function startAmbience() {
+    AudioManager.load('office_ambience', './SFX/office_ambience.wav', { loop: true, volume: 0.3 });
+    AudioManager.play('office_ambience');
+
+    setTimeout(() => {
+        AudioManager.stop('office_ambience');
+        AudioManager.load('mid_game_ambience', './SFX/mid_game_ambience.wav', { loop: true, volume: 0.5 });
+        AudioManager.play('mid_game_ambience');
+    }, 12000);
+}
+
+
+// load images
 // office
 const officeBg = new Image();
-officeBg.src = './Sprites/room_office/office_place_fix.png'
+officeBg.src = './Sprites/room_office/office_place_fix.png';
+
+const officePowerOutBg = new Image();
+officePowerOutBg.src = './Sprites/room_office/game_over.png';
+
+const officeFreddyIsHereBg = new Image();
+officeFreddyIsHereBg.src = './Sprites/room_office/freddy_is_here.png';
 
 // lit office
 const litOverlays = {
@@ -332,12 +427,11 @@ cameraRooms.forEach(room => {
 function updateCameraPan(room, deltaTime) {
     if (!room.pan) return;
 
-    const speed = 60; // pixels per second
-    const moveAmount = speed * (deltaTime / 1000); // smooth movement
+    const speed = 60;
+    const moveAmount = speed * (deltaTime / 1000);
 
     room.pan.x += moveAmount * room.pan.direction;
 
-    // Clamp + reverse direction if hitting bounds
     if (room.pan.x >= room.pan.maxX) {
         room.pan.x = room.pan.maxX;
         room.pan.direction = -1;
@@ -346,8 +440,6 @@ function updateCameraPan(room, deltaTime) {
         room.pan.direction = 1;
     }
 }
-
-
 
 // camera zones (minimap)
 const cameraZones = [
@@ -377,6 +469,96 @@ const staticEffect = {
 
 staticEffect.image.src = staticEffect.path;
 
+// power system
+const powerSystem = {
+    totalPower: 5,
+    usageLevel: 0,
+    lastUpdate: Date.now(),
+    drainRates: [0.1, 0.25, 0.35, 0.5, 0.75]
+};
+
+function updatePowerUsage() {
+    if (!gameRunning) return;
+    let usage = 0;
+
+    if (leftDoor) usage++;
+    if (rightDoor) usage++;
+    if (leftLight) usage++;
+    if (rightLight) usage++;
+    if (cameraIsOpen) usage++;
+
+    powerSystem.usageLevel = Math.min(usage, 4);
+    console.log(powerSystem.usageLevel);
+}
+
+function updatePowerSystem() {
+    if (!gameRunning) return;
+    const now = Date.now();
+    const dt = (now - powerSystem.lastUpdate) / 1000;
+    powerSystem.lastUpdate = now;
+
+    const drain = powerSystem.drainRates[powerSystem.usageLevel];
+    powerSystem.totalPower = Math.max(0, powerSystem.totalPower - drain * dt);
+
+    console.log(powerSystem.totalPower);
+
+    if (powerSystem.totalPower <= 0) {
+        freddyStartDelay = Date.now() + Math.random() * 100 + 100;
+        handlePowerOut();
+    }
+}
+
+// GAME OVER (power out)
+let freddyActive = false;
+let freddyImageToggle = false;
+let freddyTimer = 0;
+let freddyStartDelay = 0;
+let freddyTriggered = false;
+
+let moved = false;
+let roomDark = false;
+let roomDarkDelay = 0;
+
+function handlePowerOut() {
+    AudioManager.stop('office_ambience');
+    AudioManager.stop('mid_game_ambience');
+
+    canvas.addEventListener('mousemove', () => {
+        if (!moved) {
+            moved = true;
+            AudioManager.play('powerdown');
+        }
+    });
+
+    leftDoorActive = false;
+    rightDoorActive = false;
+    leftLightActive = false;
+    rightLightActive = false;
+    cameraIsOpen = false;
+
+    powerOut = true;
+
+    leftLight = false;
+    rightLight = false;
+
+    leftDoorClosing = false;
+    leftDoorOpening = true;
+
+    rightDoorClosing = false;
+    rightDoorOpening = true;
+    
+    if (leftDoor) {
+        leftDoor = false;
+        AudioManager.play('door_open_close');
+    }
+
+    if (rightDoor) {
+        rightDoor = false;
+        AudioManager.play('door_open_close');
+    }
+}
+
+
 
 // event listeners
 // camera office movement
@@ -393,41 +575,61 @@ canvas.addEventListener('click', (e) => {
 
     // left side
     if (mouseX >= 1 && mouseX <= 1 + 75 && mouseY >= 300 && mouseY <= 300 + 50) {
-        if (!leftDoor) {
+        if (!leftDoor && !powerOut) {
             leftDoorClosing = true;
             leftDoorOpening = false;
-        } else {
+            AudioManager.play('door_open_close');
+            leftDoor = !leftDoor;
+        } else if (leftDoor && !powerOut){
             leftDoorClosing = false;
             leftDoorOpening = true;
+            AudioManager.play('door_open_close');
+            leftDoor = !leftDoor;
+        } else if (powerOut) {
+            AudioManager.play('error');
         }
 
-        leftDoor = !leftDoor;
     }
     if (mouseX >= 1 && mouseX <= 1 + 75 && mouseY >= 385 && mouseY <= 385 + 50) {
-        leftLight = !leftLight;
-        rightLight = false;
+        if (!powerOut) {
+            leftLight = !leftLight;
+            rightLight = false;
+        } else {
+            AudioManager.play('error');
+        }
     }
 
     // right side
     if (mouseX >= 1480 && mouseX <= 1480 + 75 && mouseY >= 300 && mouseY <= 300 + 50) {
-        if (!rightDoor) {
+        if (!rightDoor && !powerOut) {
             rightDoorClosing = true;
             rightDoorOpening = false;
-        } else {
+            AudioManager.play('door_open_close');
+            rightDoor = !rightDoor;
+        } else if (rightDoor && !powerOut) {
             rightDoorClosing = false;
             rightDoorOpening = true;
+            AudioManager.play('door_open_close');
+            rightDoor = !rightDoor;
+        } else if (powerOut) {
+            AudioManager.play('error');
         }
 
-        rightDoor = !rightDoor;
+        
     }
     if (mouseX >= 1480 && mouseX <= 1480 + 75 && mouseY >= 385 && mouseY <= 385 + 50) {
-        rightLight = !rightLight;
-        leftLight = false;
+        if (!powerOut) {
+            rightLight = !rightLight;
+            leftLight = false;
+        } else {
+            AudioManager.play('error');
+        }
     }
 })
 
 // core camera stuff
 canvas.addEventListener('click', (e) => {
+    if (powerOut) return;
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -437,9 +639,11 @@ canvas.addEventListener('click', (e) => {
             cameraClosing = true;
             cameraOpening = false;
             cameraAnimationFinished = false;
+            AudioManager.play('camera_open');
         } else if (!cameraIsOpen && !cameraOpening && !cameraClosing) {
             cameraOpening = true;
             cameraClosing = false;
+            AudioManager.play('camera_close');
         }
     }
 })
@@ -457,6 +661,7 @@ canvas.addEventListener('click', (e) => {
             mouseX >= zone.x && mouseX <= zone.x + zone.width &&
             mouseY >= zone.y && mouseY <= zone.y + zone.height
         ) {
+            AudioManager.play('change_camera');
             const roomIndex = cameraRooms.findIndex(r => r.name === zone.name);
             if (roomIndex !== -1) {
                 currentCamIndex = roomIndex;
@@ -469,13 +674,57 @@ canvas.addEventListener('click', (e) => {
 // game drawings
 // draw office
 function drawOfficeBg() {
-    if (!officeBg.complete) return;
+    let bgImage;
 
-    const maxOffset = officeBg.width - canvas.width;
+    if (powerOut) {
+        const now = Date.now();
+
+        if (!freddyTriggered && now >= freddyStartDelay) {
+            freddyTriggered = true;
+            freddyActive = true;
+            freddyTimer = now;
+            roomDarkDelay = now + Math.random() * 5000 + 10000;
+            AudioManager.play('freddy_is_here');
+        }
+
+        if (freddyActive) {
+            if (now - freddyTimer > 500) {
+                freddyImageToggle = !freddyImageToggle;
+                freddyTimer = now;
+            }
+            
+            if (freddyTriggered && !roomDark && now >= roomDarkDelay) {
+                roomDark = true;
+                AudioManager.stop('freddy_is_here');
+            }
+            
+
+            bgImage = freddyImageToggle ? officeFreddyIsHereBg : officePowerOutBg;
+        } else {
+            bgImage = officePowerOutBg;
+        }
+    } else {
+        bgImage = officeBg;
+    }
+
+    if (!bgImage.complete) return;
+
+    if (roomDark) {
+        bgImage = officePowerOutBg;
+    }
+
+    const maxOffset = bgImage.width - canvas.width;
     const percent = mouseX / canvas.width;
     bgOffsetX = percent * maxOffset;
 
-    ctx.drawImage(officeBg, bgOffsetX, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bgImage, bgOffsetX, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+}
+
+function drawDarkerOffice() {
+    if (roomDark) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 }
 
 // draw lit office rooms
@@ -511,7 +760,7 @@ function drawOfficeButtons() {
 }
 
 function drawCameraBar() {
-    if (!cameraBar.complete) return;
+    if (!cameraBar.complete || powerOut) return;
 
     ctx.drawImage(cameraBar, 350, 660);
 }
@@ -546,7 +795,7 @@ function drawCameraUI() {
 
     ctx.fillStyle = "white";
     ctx.font = "24px Consolas";
-    ctx.fillText(cameraRooms[currentCamIndex].name, 800, 250);
+    ctx.fillText(cameraRooms[currentCamIndex].name, 900, 250);
 
     ctx.drawImage(cameraSprites.redDot, 40, 40);
     ctx.drawImage(cameraSprites.border, 0, 0);
@@ -623,12 +872,36 @@ function drawCameraStatic() {
         canvas.height
     );
     ctx.restore();
-
 }
+
+// draw power UI
+function drawPowerUI() {
+    if (powerOut) return;
+    ctx.fillStyle = 'white';
+    ctx.font = '20px Consolas';
+    ctx.textAlign = 'right';
+
+    ctx.fillText(`POWER: ${Math.floor(powerSystem.totalPower)}%`, 200, 650);
+
+    ctx.fillText(`USAGE: ${powerSystem.usageLevel + 1}`, 300, 650);
+
+    const barX = 200;
+    const barY = 680;
+    const barHeight = 20;
+    const barSpacing = 5;
+
+    for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = i < powerSystem.usageLevel ? '#0f0' : '#444';
+        ctx.fillRect(barX + i * (barHeight + barSpacing), barY, 20, 20);
+    }
+}
+
 
 
 // game loop
 let lastFrameTime = Date.now();
+let gameRunning = false;
+let powerOut = false;
 
 function getDeltaTime() {
     const now = Date.now();
@@ -639,6 +912,7 @@ function getDeltaTime() {
 
 
 function gameLoop() {
+    if (!gameRunning) return;
     const deltaTime = getDeltaTime();
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -650,6 +924,7 @@ function gameLoop() {
     drawOfficeButtons();
     drawCameraBar();
     updateDoorAnimations();
+    drawDarkerOffice();
 
     // camera
     updateCameraAnimations();
@@ -668,9 +943,18 @@ function gameLoop() {
         drawCameraBar();
     }
 
+    // power system
+    updatePowerUsage();
+    updatePowerSystem();
+
+    drawPowerUI();
+
     requestAnimationFrame(gameLoop);
 }
 
 function gameStart() {
+    powerSystem.lastUpdate = Date.now();
+    gameRunning = true;
     gameLoop();
+    startAmbience();
 }
