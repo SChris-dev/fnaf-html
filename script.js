@@ -162,7 +162,98 @@ cameraBar.src = './Sprites/office_ui/camera_bar.png';
 const cameraLiftImage = new Image();
 cameraLiftImage.src = './Sprites/camera_ui/camera_lift.png';
 
+// power system
+const powerBarFrames = [
+    { x: 1, y: 58 },
+    { x: 106, y: 58 },
+    { x: 211, y: 58 },
+    { x: 316, y: 58 },
+    { x: 1, y: 92 },   
+];
+
+const powerBarImage = new Image();
+powerBarImage.src = './Sprites/camera_ui/camera_power.png';
+
+// power ui texts
+const uiSprites = {
+    usageLabel: { x: 1, y: 42, w: 72, h: 14 },
+    powerLeftLabel: { x: 1, y: 26, w: 137, h: 14 },
+    digits: {
+        '0': { x: 1, y: 2, w: 18, h: 22 },
+        '1': { x: 20, y: 2, w: 18, h: 22 },
+        '2': { x: 39, y: 2, w: 18, h: 22 },
+        '3': { x: 58, y: 2, w: 18, h: 22 },
+        '4': { x: 77, y: 2, w: 18, h: 22 },
+        '5': { x: 96, y: 2, w: 18, h: 22 },
+        '6': { x: 115, y: 2, w: 18, h: 22 },
+        '7': { x: 134, y: 2, w: 18, h: 22 },
+        '8': { x: 153, y: 2, w: 18, h: 22 },
+        '9': { x: 172, y: 2, w: 18, h: 22 },
+        '%': { x: 268, y: 2, w: 18, h: 22 },
+    }
+}
+
+// night timer sprite
+const nightTimerImage = new Image();
+nightTimerImage.src = './Sprites/camera_ui/camera_night_timer.png';
+
+const nightTimerSprites = {
+    nightLabel: { x: 0, y: 0, w: 63, h: 14 },
+    AMLabel: { x: 1, y: 64, w: 42, h: 25 },
+    hourDigits: {
+        '1': { x: 26, y: 33, w: 24, h: 30 },
+        '2': { x: 51, y: 33, w: 24, h: 30 },
+        '3': { x: 76, y: 33, w: 24, h: 30 },
+        '4': { x: 101, y: 33, w: 24, h: 30 },
+        '5': { x: 126, y: 33, w: 24, h: 30 },
+    },
+    nightDigits: {
+        '1': { x: 80, y: 0, w: 14, h: 17 },
+        '2': { x: 95, y: 0, w: 14, h: 17 },
+        '3': { x: 110, y: 0, w: 14, h: 17 },
+        '4': { x: 125, y: 0, w: 14, h: 17 },
+        '5': { x: 140, y: 0, w: 14, h: 17 },
+        '6': { x: 155, y: 0, w: 14, h: 17 },
+        '7': { x: 170, y: 0, w: 14, h: 17 },
+    }
+}
+
 // game variables
+// night system (progression)
+let nightStartTime = null;
+let currentHour = 12;
+let hourCount = 0;
+let nightEnded = false;
+let nightNumber = 1;
+
+function startNight(night) {
+    nightNumber = night;
+    nightStartTime = Date.now();
+    currentHour = 12;
+    hourCount = 0;
+    nightEnded = false;
+}
+
+function updateNightProgress() {
+    if (nightEnded || nightStartTime === null) return;
+
+    const now = Date.now();
+    const elapsed = now - nightStartTime;
+    const newHourCount = Math.floor(elapsed / 60000); // 20s per in-game hour
+
+    if (newHourCount !== hourCount && newHourCount <= 6) {
+        hourCount = newHourCount;
+        currentHour = hourCount === 0 ? 12 : hourCount;
+        // AudioManager.play('clock_chime');
+        console.log(`🕒 It is now ${currentHour} AM`);
+    }
+
+    if (hourCount >= 6) {
+        nightEnded = true;
+        alert('You survived until 6 AM! 🎉');
+    }
+}
+
 
 // office background system
 let mouseX = canvas.width / 2;
@@ -471,7 +562,7 @@ staticEffect.image.src = staticEffect.path;
 
 // power system
 const powerSystem = {
-    totalPower: 5,
+    totalPower: 100,
     usageLevel: 0,
     lastUpdate: Date.now(),
     drainRates: [0.1, 0.25, 0.35, 0.5, 0.75]
@@ -503,7 +594,6 @@ function updatePowerSystem() {
     console.log(powerSystem.totalPower);
 
     if (powerSystem.totalPower <= 0) {
-        freddyStartDelay = Date.now() + Math.random() * 100 + 100;
         handlePowerOut();
     }
 }
@@ -512,14 +602,18 @@ function updatePowerSystem() {
 let freddyActive = false;
 let freddyImageToggle = false;
 let freddyTimer = 0;
-let freddyStartDelay = 0;
+let freddyStartDelay = 5000;
 let freddyTriggered = false;
 
 let moved = false;
 let roomDark = false;
 let roomDarkDelay = 0;
+let powerOutTriggered = false;
 
 function handlePowerOut() {
+    if (powerOutTriggered) return;
+    powerOutTriggered = true;
+
     AudioManager.stop('office_ambience');
     AudioManager.stop('mid_game_ambience');
 
@@ -529,6 +623,8 @@ function handlePowerOut() {
             AudioManager.play('powerdown');
         }
     });
+
+    freddyStartDelay = Date.now() + Math.random() * 5000 + 10000;
 
     leftDoorActive = false;
     rightDoorActive = false;
@@ -557,7 +653,6 @@ function handlePowerOut() {
         AudioManager.play('door_open_close');
     }
 }
-
 
 
 // event listeners
@@ -634,7 +729,7 @@ canvas.addEventListener('click', (e) => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    if (mouseX >= 350 && mouseX <= 950 && mouseY >= 670 && mouseY <= 720) {
+    if (mouseX >= 350 && mouseX <= 950 && mouseY >= 640 && mouseY <= 720) {
         if (cameraIsOpen && !cameraClosing && !cameraOpening) {
             cameraClosing = true;
             cameraOpening = false;
@@ -672,6 +767,45 @@ canvas.addEventListener('click', (e) => {
 });
 
 // game drawings
+// draw night clock helper
+function drawSpriteClock(sprite, dx, dy) {
+    ctx.drawImage(
+        nightTimerImage,
+        sprite.x, sprite.y, sprite.w, sprite.h,
+        dx, dy, sprite.w, sprite.h
+    );
+}
+
+// draw night clock
+function drawClockUI() {
+    if (powerOut) return;
+    
+    const hourStr = currentHour.toString();
+    let hourOffsetX = canvas.width - 200;
+
+    for (let char of hourStr) {
+        const digitSprite = nightTimerSprites.hourDigits[char];
+        if (digitSprite) {
+            drawSpriteClock(digitSprite, hourOffsetX + 50, 37);
+            hourOffsetX += digitSprite.w + 2;
+        }
+    }
+
+    drawSpriteClock(nightTimerSprites.AMLabel, hourOffsetX + 65, 40);
+
+    drawSpriteClock(nightTimerSprites.nightLabel, canvas.width - 145, 83);
+
+    const nightStr = nightNumber.toString();
+    let nightOffsetX = canvas.width - 65;
+    for (let char of nightStr) {
+        const digit = nightTimerSprites.nightDigits[char];
+        if (digit) {
+            drawSpriteClock(digit, nightOffsetX, 80);
+            nightOffsetX += digit.w + 2;
+        }
+    }
+}
+
 // draw office
 function drawOfficeBg() {
     let bgImage;
@@ -762,7 +896,7 @@ function drawOfficeButtons() {
 function drawCameraBar() {
     if (!cameraBar.complete || powerOut) return;
 
-    ctx.drawImage(cameraBar, 350, 660);
+    ctx.drawImage(cameraBar, 350, 640);
 }
 
 // draw office doors
@@ -874,27 +1008,53 @@ function drawCameraStatic() {
     ctx.restore();
 }
 
+// text system (the power)
+function drawTextFromSprites(text, startX, startY) {
+    let x = startX;
+
+    for (let char of text) {
+        const sprite = uiSprites.digits[char];
+        if (!sprite) continue;
+
+        ctx.drawImage(
+            powerBarImage,
+            sprite.x, sprite.y, sprite.w, sprite.h,
+            x, startY, sprite.w, sprite.h
+        );
+
+        x += sprite.w + 2;
+    }
+}
+
 // draw power UI
 function drawPowerUI() {
     if (powerOut) return;
-    ctx.fillStyle = 'white';
-    ctx.font = '20px Consolas';
-    ctx.textAlign = 'right';
 
-    ctx.fillText(`POWER: ${Math.floor(powerSystem.totalPower)}%`, 200, 650);
+    let label = uiSprites.powerLeftLabel;
+    ctx.drawImage(powerBarImage, label.x, label.y, label.w, label.h, 50, 620, label.w, label.h);
 
-    ctx.fillText(`USAGE: ${powerSystem.usageLevel + 1}`, 300, 650);
+    let usage = uiSprites.usageLabel;
+    ctx.drawImage(powerBarImage, usage.x, usage.y, usage.w, usage.h, 50, 660, usage.w, usage.h);
 
-    const barX = 200;
-    const barY = 680;
-    const barHeight = 20;
-    const barSpacing = 5;
+    const power = Math.max(0, Math.floor(powerSystem.totalPower)) + '%';
+    drawTextFromSprites(power, 200, 615);
 
-    for (let i = 0; i < 4; i++) {
-        ctx.fillStyle = i < powerSystem.usageLevel ? '#0f0' : '#444';
-        ctx.fillRect(barX + i * (barHeight + barSpacing), barY, 20, 20);
-    }
+    const frame = powerBarFrames[powerSystem.usageLevel];
+    const frameWidth = 103;
+    const frameHeight = 32;
+
+    const destX = 130;
+    const destY = 650;
+
+    ctx.drawImage(
+        powerBarImage,
+        frame.x, frame.y,
+        frameWidth, frameHeight,
+        destX, destY,
+        frameWidth, frameHeight
+    );
 }
+
 
 
 
@@ -946,15 +1106,20 @@ function gameLoop() {
     // power system
     updatePowerUsage();
     updatePowerSystem();
-
     drawPowerUI();
+
+    // night system
+    updateNightProgress();
+    drawClockUI();
+
 
     requestAnimationFrame(gameLoop);
 }
 
-function gameStart() {
+function gameStart(nightCounter) {
     powerSystem.lastUpdate = Date.now();
     gameRunning = true;
     gameLoop();
     startAmbience();
+    startNight(nightCounter);
 }

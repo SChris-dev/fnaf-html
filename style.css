@@ -25,6 +25,17 @@ html {
     z-index: -1;
 }
 
+.the-intro {
+    display: none;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image: url('./Sprites/intro.png');
+    background-repeat: no-repeat;
+    background-size: cover;
+    z-index: -1;
+}
+
 .menu-title {
     position: absolute;
     top: 100px;
@@ -94,6 +105,14 @@ button:disabled {
     opacity: 0.5;
 }
 
+button {
+    transition: .5s ease all;
+}
+
+button:hover {
+    transform: scale(1.1) translateX(20px);
+}
+
 /* instruction */
 
 #instructionContainer {
@@ -115,6 +134,24 @@ button:disabled {
     font-weight: 700;
     font-size: 20px;
     cursor: pointer;
+}
+
+/* transition */
+
+.the-transition {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    z-index: 99;
+    opacity: 0;
+    transition: 1.5s ease-in all;
+    visibility: hidden;
+}
+
+.start-transition {
+    opacity: 1;
+    visibility: visible;
 }
 
 /* game */
